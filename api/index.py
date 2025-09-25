@@ -50,13 +50,11 @@ MESSAGES = {
         "join_button_text": "✅ please first join channel",
         "invalid_number": "እባክዎ ትክክለኛ ቁጥር ብቻ ያስገቡ።",
         "audio_link_message": "🔗 [{surah_name} by {reciter_name}]({audio_url})\n\nከላይ ያለውን ሰማያዊ ሊንክ በመጫን ድምጹን በቀጥታ ማዳመጥ ወይም ማውረድ ይችላሉ።",
-        "fetching_ayah": "📖 የቀኑን አያ በማዘጋጀት ላይ ነው... እባክዎ ትንሽ ይጠብቁ።",
         "buttons": {
             "surah_text": "📖 ሱራዎች በጽሁፍ", "reciters_audio": "🎧 ቃሪዎች በድምጽ",
             "other": "⚙️ ሌሎች", "back": "🔙 ወደ ኋላ",
             "surah_by_number": "🕋 ሱራ በቁጥር", "juz_by_number": "📗 ጁዝ በቁጥር",
-            "language": "🌐 ቋንቋ", "support": "🆘 እርዳታ",
-            "daily_ayah": "📖 የቀኑ አያ"
+            "language": "🌐 ቋንቋ", "support": "🆘 እርዳታ"
         }
     },
     'en': {
@@ -77,13 +75,11 @@ MESSAGES = {
         "join_button_text": "✅ please first join channel",
         "invalid_number": "Please enter a valid number.",
         "audio_link_message": "🔗 [{surah_name} by {reciter_name}]({audio_url})\n\nYou can listen or download by clicking the link above.",
-        "fetching_ayah": "📖 Fetching the Verse of the Day... Please wait.",
         "buttons": {
             "surah_text": "📖 Surahs in Text", "reciters_audio": "🎧 Reciters by Audio",
             "other": "⚙️ Others", "back": "🔙 Back",
             "surah_by_number": "🕋 Surah by Number", "juz_by_number": "📗 Juz by Number",
-            "language": "🌐 Language", "support": "🆘 Support",
-            "daily_ayah": "📖 Verse of the Day"
+            "language": "🌐 Language", "support": "🆘 Support"
         }
     },
     # Add 'ar' and 'tr' dictionaries here in the same format
@@ -122,7 +118,6 @@ def other_menu_keyboard(lang='am'):
     return {
         "keyboard": [
             [{"text": buttons['language']}, {"text": buttons['support']}],
-            [{"text": buttons['daily_ayah']}],
             [{"text": buttons['back']}]
         ], "resize_keyboard": True
     }
@@ -208,43 +203,23 @@ def handle_surah_input(chat_id, text, lang):
         send_telegram_message(chat_id, MESSAGES.get(lang, MESSAGES['am'])["invalid_number"])
 
 def handle_juz_input(chat_id, text, lang):
-    # ... (Implementation is the same as the previous full version)
+    # This function needs to be fully implemented
     pass
 
 def handle_reciter_surah_input(chat_id, text, lang, reciter_key):
-    # ... (Implementation is the same as the previous full version)
+    # This function needs to be fully implemented
     pass
 
 def handle_support_input(chat_id, text, lang, user_name, user_id):
-    # ... (Implementation is the same as the previous full version)
+    # This function needs to be fully implemented
     pass
-    
-def handle_daily_ayah(chat_id, lang):
-    try:
-        send_telegram_message(chat_id, MESSAGES.get(lang, MESSAGES['am'])['fetching_ayah'])
-        # A random number from 1 to 6236 (total ayahs in Quran)
-        random_ayah_number = random.randint(1, 6236)
-        response = requests.get(f"{QURAN_API_BASE_URL}/ayah/{random_ayah_number}")
-        response.raise_for_status()
-        data = response.json()['data']
-        
-        ayah_text = data['text']
-        surah_name = data['surah']['englishName']
-        ayah_in_surah = data['numberInSurah']
-        
-        message = f"📖 *Verse of the Day*\n\n`{ayah_text}`\n\n- {surah_name}, Verse {ayah_in_surah}"
-        send_telegram_message(chat_id, message)
-    except requests.RequestException as e:
-        print(f"Error fetching daily ayah: {e}")
-        send_telegram_message(chat_id, "Sorry, could not fetch the verse of the day at this moment.")
-
 
 # --- Admin Handlers ---
 def handle_status(chat_id):
-    #... (Implementation is the same as the previous full version)
+    # This function needs to be fully implemented
     pass
 def handle_broadcast(admin_id, text_parts):
-    # ... (Implementation is the same as the previous full version)
+    # This function needs to be fully implemented
     pass
 
 # --- Main Webhook Handler ---
@@ -254,7 +229,7 @@ def webhook():
     
     # Handle inline button clicks for language
     if 'callback_query' in update:
-        # ... (Implementation is the same)
+        # This part needs to be fully implemented
         pass
 
     if 'message' not in update:
@@ -270,16 +245,16 @@ def webhook():
     is_admin = str(user_id) == ADMIN_ID
     
     if text.startswith('/'):
-        # ... (Implementation is the same)
+        # This part needs to be fully implemented
         pass
 
     if not is_admin and not is_user_member(user_id):
-        # ... (Implementation is the same)
+        # This part needs to be fully implemented
         pass
 
     current_state_info = user_state.get(chat_id)
     if current_state_info:
-        # ... (Implementation is the same)
+        # This part needs to be fully implemented
         pass
 
     # --- Button Text Handling (Now Dynamic) ---
@@ -290,9 +265,6 @@ def webhook():
     elif text == buttons['other']:
         send_telegram_message(chat_id, MESSAGES.get(lang, MESSAGES['am'])["other_options"], reply_markup=other_menu_keyboard(lang))
     
-    elif text == buttons['daily_ayah']:
-        handle_daily_ayah(chat_id, lang)
-
     elif text == buttons['surah_by_number']:
         user_state[chat_id] = {'state': 'awaiting_surah'}
         send_telegram_message(chat_id, MESSAGES.get(lang, MESSAGES['am'])["request_surah_number"], reply_markup={"remove_keyboard": True})
