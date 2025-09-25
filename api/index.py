@@ -30,14 +30,12 @@ member_cache = {}
 
 # --- Menu Keyboards ---
 def main_menu_keyboard(lang='am'):
-    # This can be localized later if needed
     return {
         "keyboard": [
             [{"text": "📖 ሱራዎች በጽሁፍ"}, {"text": "🎧 ቃሪዎች በድምጽ"}],
             [{"text": "⚙️ ሌሎች"}],
         ],
-        "resize_keyboard": True,
-        "one_time_keyboard": False
+        "resize_keyboard": True
     }
 
 def text_menu_keyboard(lang='am'):
@@ -46,8 +44,7 @@ def text_menu_keyboard(lang='am'):
             [{"text": "🕋 ሱራ በቁጥር"}, {"text": "📗 ጁዝ በቁጥር"}],
             [{"text": "🔙 ወደ ኋላ"}]
         ],
-        "resize_keyboard": True,
-        "one_time_keyboard": False
+        "resize_keyboard": True
     }
     
 def reciters_menu_keyboard(lang='am'):
@@ -66,7 +63,7 @@ def other_menu_keyboard(lang='am'):
         "resize_keyboard": True
     }
 
-# --- Database & Telegram Functions (No changes needed) ---
+# --- Database & Telegram Functions ---
 def get_db():
     if not JSONBIN_BIN_ID or not JSONBIN_API_KEY: return None
     headers = {'X-Master-Key': JSONBIN_API_KEY, 'X-Bin-Meta': 'false'}
@@ -132,46 +129,110 @@ def handle_surah_input(chat_id, text, lang):
         surah_number = int(text)
         if not 1 <= surah_number <= 114: raise ValueError
         response = requests.get(f"{QURAN_API_BASE_URL}/surah/{surah_number}")
+        response.raise_for_status()
         data = response.json()['data']
         surah_name = data['englishName']
         ayahs = data['ayahs']
-        message = f"🕋 *Surah {surah_number}: {surah_name}*\n\n"
+        header = f"🕋 *Surah {surah_number}: {surah_name}*\n\n"
         full_text = ""
         for ayah in ayahs:
             full_text += f"{ayah['numberInSurah']}. {ayah['text']}\n"
         
-        for i in range(0, len(full_text), 4096):
-            send_telegram_message(chat_id, message + full_text[i:i+4096])
-            message = "" # Only send header with the first part
-    except (ValueError, KeyError):
+        for i in range(0, len(full_text), 4096 - len(header)):
+            chunk = full_text[i:i + 4096 - len(header)]
+            send_telegram_message(chat_id, header + chunk)
+            header = ""
+    except (ValueError, KeyError, requests.RequestException):
         send_telegram_message(chat_id, "እባክዎ ትክክለኛ ቁጥር ብቻ ያስገቡ (1-114)።")
 
 def handle_juz_input(chat_id, text, lang):
     try:
         juz_number = int(text)
-        # Fetch and send Juz text...
-        send_telegram_message(chat_id, f"Fetching Juz {juz_number}...")
-    except ValueError:
+        if not 1 <= juz_number <= 30: raise ValueError
+        response = requests.get(f"{QURAN_API_BASE_URL}/juz/{juz_number}")
+        response.raise_for_status()
+        data = response.json()['data']
+        ayahs = data['ayahs']
+        header = f"📗 *Juz' {juz_number}*\n\n"
+        full_text = ""
+        current_surah_name = ""
+        for ayah in ayahs:
+            if ayah['surah']['name'] != current_surah_name:
+                current_surah_name = ayah['surah']['name']
+                full_text += f"\n--- {current_surah_name} ---\n"
+            full_text += f"{ayah['numberInSurah']}. {ayah['text']}\n"
+        
+        for i in range(0, len(full_text), 4096 - len(header)):
+            chunk = full_text[i:i + 4096 - len(header)]
+            send_telegram_message(chat_id, header + chunk)
+            header = ""
+    except (ValueError, KeyError, requests.RequestException):
         send_telegram_message(chat_id, "እባክዎ ትክክለኛ ቁጥር ብቻ ያስገቡ (1-30)።")
 
 def handle_reciter_surah_input(chat_id, text, lang, reciter_key):
     try:
         surah_number = int(text)
-        # Fetch and send recitation link...
-        send_telegram_message(chat_id, f"Fetching Surah {surah_number} for {reciter_key}...")
-    except ValueError:
-        send_telegram_message(chat_id, "እባክዎ ትክክለኛ ቁጥር ብቻ ያስገቡ (1-114)።")
+        if not 1 <= surah_number <= 114: raise ValueError
+        
+        reciter_info = RECITERS[reciter_key]
+        reciter_name = reciter_info['name']
+        reciter_identifier = reciter_info['identifier']
+        
+        padded_surah_number = str(surah_number).zfill(3)
+        audio_url = f"https://download.quranicaudio.com/quran/{reciter_identifier}/{padded_surah_number}.mp3"
+        
+        surah_info_response = requests.get(f"{QURAN_API_BASE_URL}/surah/{surah_number}")
+        surah_name_english = surah_info_response.json()['data']['englishName']
+
+        message_text = f"🔗 [{surah_name_english} by {reciter_name}]({audio_url})\n\nከላይ ያለውን ሰማያዊ ሊንክ በመጫን ድምጹን በቀጥታ ማዳመጥ ወይም ማውረድ ይችላሉ።"
+        send_telegram_message(chat_id, message_text)
+    except (ValueError, KeyError, requests.RequestException):
+        send_telegram_message(chat_id, "እባክዎ ትክክለኛ ቁጥር ብቻ ያስገቡ (1-114)። የድምጽ ፋይሉ ላይገኝ ይችላል።")
 
 def handle_support_input(chat_id, text, lang, user_name, user_id):
     forward_message = f"🆘 *New Support Message*\n\n*From:* {user_name} (ID: `{user_id}`)\n\n*Message:* {text}"
     if ADMIN_ID: send_telegram_message(ADMIN_ID, forward_message)
     send_telegram_message(chat_id, "✅ መልዕክትዎ ለአድሚኑ ተልኳል።")
 
+# --- Admin Handlers ---
+def handle_status(chat_id):
+    db_data = get_db()
+    user_count = len(db_data.get('users', [])) if db_data else 'N/A'
+    send_telegram_message(chat_id, f"📊 *Bot Status*\n\nTotal Users: *{user_count}*")
+
+def handle_broadcast(admin_id, text_parts):
+    if not text_parts:
+        send_telegram_message(admin_id, "Usage: `/broadcast <message>`")
+        return
+    message_text = " ".join(text_parts)
+    db_data = get_db()
+    users = db_data.get('users', [])
+    sent_count, failed_count = 0, 0
+    for user_id in users:
+        try:
+            send_telegram_message(user_id, message_text)
+            sent_count += 1
+            time.sleep(0.1)
+        except Exception:
+            failed_count += 1
+    send_telegram_message(admin_id, f"✅ Broadcast sent to {sent_count} users.\n❌ Failed to send to {failed_count} users.")
+
 # --- Main Webhook Handler ---
 @app.route('/', methods=['POST'])
 def webhook():
     update = request.get_json()
     
+    # Handle inline button clicks for language
+    if 'callback_query' in update:
+        callback_query = update['callback_query']
+        chat_id = callback_query['message']['chat']['id']
+        data = callback_query['data']
+        if data.startswith('set_lang_'):
+            lang_code = data.split('_')[-1]
+            user_languages[chat_id] = lang_code
+            send_telegram_message(chat_id, f"✅ Language changed to {lang_code.upper()}.")
+        return 'ok'
+
     if 'message' not in update:
         return 'ok'
 
@@ -183,9 +244,21 @@ def webhook():
     lang = get_user_lang(chat_id)
     is_admin = str(user_id) == ADMIN_ID
     
-    if text == '/start':
-        add_user_to_db(user_id)
-        user_state.pop(chat_id, None)
+    if text.startswith('/'):
+        command_parts = text.split()
+        command = command_parts[0]
+        args = command_parts[1:]
+        if command == '/start':
+            add_user_to_db(user_id)
+            user_state.pop(chat_id, None)
+            send_telegram_message(chat_id, "እባክዎ ከታች ካሉት ምናሌዎች ይምረጡ:", reply_markup=main_menu_keyboard(lang))
+            return 'ok'
+        elif is_admin and command == '/status':
+            handle_status(chat_id)
+            return 'ok'
+        elif is_admin and command == '/broadcast':
+            handle_broadcast(chat_id, args)
+            return 'ok'
 
     if not is_admin and not is_user_member(user_id):
         if user_id in member_cache: member_cache.pop(user_id)
@@ -195,65 +268,45 @@ def webhook():
         return 'ok'
 
     current_state_info = user_state.get(chat_id)
-
     if current_state_info:
         state = current_state_info.get('state')
-        if state == 'awaiting_surah':
-            handle_surah_input(chat_id, text, lang)
-        elif state == 'awaiting_juz':
-            handle_juz_input(chat_id, text, lang)
-        elif state == 'awaiting_surah_for_reciter':
-            handle_reciter_surah_input(chat_id, text, lang, current_state_info.get('reciter'))
-        elif state == 'awaiting_support_message':
-            handle_support_input(chat_id, text, lang, user_name, user_id)
+        if state == 'awaiting_surah': handle_surah_input(chat_id, text, lang)
+        elif state == 'awaiting_juz': handle_juz_input(chat_id, text, lang)
+        elif state == 'awaiting_surah_for_reciter': handle_reciter_surah_input(chat_id, text, lang, current_state_info.get('reciter'))
+        elif state == 'awaiting_support_message': handle_support_input(chat_id, text, lang, user_name, user_id)
         
         user_state.pop(chat_id, None)
         send_telegram_message(chat_id, "ዋና ምናሌ:", reply_markup=main_menu_keyboard(lang))
         return 'ok'
 
-    if text == '/start' or text == '🔙 ወደ ኋላ':
-        send_telegram_message(chat_id, "እባክዎ ከታች ካሉት ምናሌዎች ይምረጡ:", reply_markup=main_menu_keyboard(lang))
-    
-    elif text == "📖 ሱራዎች በጽሁፍ":
+    if text == "📖 ሱራዎች በጽሁፍ":
         send_telegram_message(chat_id, "ሱራ ይፈልጋሉ ወይስ ጁዝ?", reply_markup=text_menu_keyboard(lang))
-    
     elif text == "🎧 ቃሪዎች በድምጽ":
         send_telegram_message(chat_id, "እባክዎ የሚፈልጉትን ቃሪዕ ይምረጡ:", reply_markup=reciters_menu_keyboard(lang))
-
     elif text == "⚙️ ሌሎች":
         send_telegram_message(chat_id, "ሌሎች አገልግሎቶች:", reply_markup=other_menu_keyboard(lang))
-
     elif text == "🕋 ሱራ በቁጥር":
         user_state[chat_id] = {'state': 'awaiting_surah'}
         send_telegram_message(chat_id, "እባክዎ የሚፈልጉትን የሱራ ቁጥር ብቻ ይላኩ።", reply_markup={"remove_keyboard": True})
-
     elif text == "📗 ጁዝ በቁጥር":
         user_state[chat_id] = {'state': 'awaiting_juz'}
         send_telegram_message(chat_id, "እባክዎ የሚፈልጉትን የጁዝ ቁጥር ብቻ ይላኩ።", reply_markup={"remove_keyboard": True})
-        
     elif text in [value['name'] for value in RECITERS.values()]:
         reciter_key = next((key for key, value in RECITERS.items() if value['name'] == text), None)
         if reciter_key:
             user_state[chat_id] = {'state': 'awaiting_surah_for_reciter', 'reciter': reciter_key}
             send_telegram_message(chat_id, f"ለ *{text}* የትኛውን ሱራ መስማት ይፈልጋሉ? እባክዎ የሱራውን ቁጥር ብቻ ይላኩ።", reply_markup={"remove_keyboard": True})
-    
     elif text == "🌐 ቋንቋ":
-        # This part remains inline as it's better UX
         keyboard = {"inline_keyboard": [[{"text": "አማርኛ", "callback_data": "set_lang_am"}, {"text": "English", "callback_data": "set_lang_en"}],[{"text": "العربية", "callback_data": "set_lang_ar"}, {"text": "Türkçe", "callback_data": "set_lang_tr"}]]}
         send_telegram_message(chat_id, "እባክዎ ቋንቋ ይምረጡ:", reply_markup=keyboard)
-
     elif text == "🆘 እርዳታ":
         user_state[chat_id] = {'state': 'awaiting_support_message'}
         send_telegram_message(chat_id, "እባክዎ የመልዕክትዎን ይዘት ይላኩ። ለአድሚኑ ይደርሳል።", reply_markup={"remove_keyboard": True})
-
-    # Admin commands remain as text commands
-    elif is_admin and text == '/status':
-        # ... handle_status call ...
-        pass
+    elif text == '🔙 ወደ ኋላ':
+        send_telegram_message(chat_id, "ዋና ምናሌ:", reply_markup=main_menu_keyboard(lang))
     
     return 'ok'
 
 @app.route('/')
 def index():
     return "Quran Bot with Button Menu is running!"
-v
