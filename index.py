@@ -217,3 +217,4 @@ if __name__ == "__main__":
     # bot.set_webhook(url='የእርስዎ ngrok/repl.it ዩአርኤል እዚህ')
     # app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
     pass # Vercel ላይ ሲሆን ይህ ክፍል አይሰራም
+
